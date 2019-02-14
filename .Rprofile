@@ -6,7 +6,7 @@
   devtools::document()
 
   if(rcpp) {
-    pkg_name <- as.package(".")$package
+    pkg_name <- devtools::as.package(".")$package
     
     # modify the NAMESPACE
     con <- file("NAMESPACE", "r")
@@ -23,10 +23,6 @@
     # reformat the Rcpp code
     Rcpp::compileAttributes()
     .MODIFY_SRC_CODE()
-
-    # code from devtools::check()
-    devtools::check(document = F)
-
   } 
   
   devtools::check(document = F)
