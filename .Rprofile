@@ -2,11 +2,13 @@
   files <- list.files("man", full.names = T)
   file.remove(files)
   file.remove("NAMESPACE")
+  
+  devtools::document()
 
   if(rcpp) {
     pkg_name <- as.package(".")$package
-    devtools::document()
     
+    # modify the NAMESPACE
     con <- file("NAMESPACE", "r")
     line <- readLines(con)
     close(con)
@@ -18,28 +20,16 @@
     writeLines(line, con)
     close(con)
 
+    # reformat the Rcpp code
     Rcpp::compileAttributes()
     .MODIFY_SRC_CODE()
 
     # code from devtools::check()
-    withr::with_envvar(pkgbuild::compiler_flags(FALSE), action = "prefix", {
-      built_path <- pkgbuild::build(
-        as.package(".")$path, tempdir(),
-        args = NULL, quiet = F, manual = F)
-      on.exit(unlink(built_path), add = TRUE)
-    })
-    
-    devtools::check_built(built_path,
-      cran = T, remote = F, incoming = F, force_suggests = F,
-      run_dont_test = F, manual = F, args = "--timings",
-      env_vars = NULL, quiet = F, check_dir = tempdir(),
-      error_on = "warning"
-    )
-
-  } else {
-    devtools::document()
     devtools::check(document = F)
-  }
+
+  } 
+  
+  devtools::check(document = F)
 
   invisible()
 }
