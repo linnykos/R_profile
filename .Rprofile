@@ -4,34 +4,37 @@
   file.remove("NAMESPACE")
 
   if(rcpp) {
-    pkg_name <- .GRAB_PKG_NAME()
-    line <- paste0("useDynLib(", pkg_name, ", .registration=TRUE)",
-                   "\nexportPattern(\"^[[:alpha:]]+\")", "\nimport(Rcpp)")
-    write(line, file = "NAMESPACE")
-    unlink("data")
+    pkg_name <- as.package(".")$package
+    devtools::document()
+    
+    con <- file("NAMESPACE", "r")
+    line <- readLines(con)
+    close(con)
+    
+    line <- c(line, paste0("useDynLib(", pkg_name, ")"), 
+              "importFrom(Rcpp, evalCpp)")
+    
+    con <- file("NAMESPACE")
+    writeLines(line, con)
+    close(con)
 
     Rcpp::compileAttributes()
     .MODIFY_SRC_CODE()
 
-    if(file.exists(".extension")){
-      con <- file(".extension", "r")
-      line <- readLines(con)
-      close(con)
-      write(line, file = "NAMESPACE", append = T)
-    }
-
-    devtools::document()
-
-    .MODIFY_SRC_CODE()
-    withr::with_envvar(devtools:::compiler_flags(FALSE), action = "prefix",
-                       {path <- .CUSTOM_BUILD()})
-    path <- tools::file_path_as_absolute(path)
-    devtools::check_built(path, cran = TRUE, check_version = TRUE,
-                force_suggests = FALSE, run_dont_test = FALSE,
-                manual = FALSE, args = NULL,
-                env_vars = c("_R_CHECK_CRAN_INCOMING_" = FALSE),
-                quiet = FALSE,
-                check_dir = tempdir())
+    # code from devtools::check()
+    withr::with_envvar(pkgbuild::compiler_flags(FALSE), action = "prefix", {
+      built_path <- pkgbuild::build(
+        as.package(".")$path, tempdir(),
+        args = NULL, quiet = F, manual = F)
+      on.exit(unlink(built_path), add = TRUE)
+    })
+    
+    devtools::check_built(built_path,
+      cran = T, remote = F, incoming = F, force_suggests = F,
+      run_dont_test = F, manual = F, args = "--timings",
+      env_vars = NULL, quiet = F, check_dir = tempdir(),
+      error_on = "warning"
+    )
 
   } else {
     devtools::document()
@@ -39,34 +42,6 @@
   }
 
   invisible()
-}
-
-# based on the devtools::build() function
-.CUSTOM_BUILD <- function (pkg = ".", path = "..", vignettes = TRUE,
-                           manual = FALSE, args = NULL, quiet = FALSE) {
-  pkg <- devtools::as.package(pkg)
-  if (is.null(path)) {
-    path <- dirname(pkg$path)
-  }
-  devtools:::check_build_tools(pkg)
-
-  args <- c(args, "--no-resave-data")
-  if (manual && !has_latex(verbose = TRUE)) {
-    manual <- FALSE
-  }
-  if (!manual) {
-    args <- c(args, "--no-manual")
-  }
-  if (!vignettes) {
-    args <- c(args, "--no-build-vignettes")
-  }
-  cmd <- paste0("CMD build ", shQuote(pkg$path), " ", paste0(args,
-                                                             collapse = " "))
-  ext <- ".tar.gz"
-
-  withr::with_temp_libpaths(devtools:::R(cmd, path, quiet = quiet))
-  targz <- paste0(pkg$package, "_", pkg$version, ext)
-  file.path(path, targz)
 }
 
 .MODIFY_SRC_CODE <- function(){
@@ -88,16 +63,6 @@
   }
 
   invisible()
-}
-
-.GRAB_PKG_NAME <- function(){
-  con <- file("DESCRIPTION", open="r")
-  line <- readLines(con)
-  close(con)
-
-  line <- line[1]
-  line <- strsplit(line, split = ": ")[[1]]
-  line[2]
 }
 
 .LOAD_ALL <- function(nuke = FALSE){
